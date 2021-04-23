@@ -38,7 +38,7 @@ class Gene(object):
         self.bitarray = bitarray(gen)
 
     def init_random(self):
-        self.bitarray = bitarray([randint(2,size=1) for _ in range(self.bits)])
+        self.bitarray = bitarray([randint(2,size=1)[0] for _ in range(self.bits)])
 
     def mutate(self, Pm):
         for ii in range(len(self.bitarray)):
