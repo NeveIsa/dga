@@ -7,6 +7,10 @@ import pathos
 
 FloatDisplayFormatting = '{0:12.4f}' # Sets the formatting for when stats are displayed each generation
 
+
+proc = None
+
+
 def dga(cost, lower_bound, upper_bound, bits, *args, **kwargs):
     '''
     Inputs:
@@ -60,9 +64,10 @@ def dga(cost, lower_bound, upper_bound, bits, *args, **kwargs):
             population[ii][jj].init_random()
 
     try:
-        new_cost = lru_cache(maxsize=cache_size)(cost)
-        test_value = new_cost(*[gene.decode() for gene in population[0]])
-        cost = new_cost
+        pass
+        #new_cost = lru_cache(maxsize=cache_size)(cost)
+        #test_value = new_cost(*[gene.decode() for gene in population[0]])
+        #cost = new_cost
     except Exception as e:
         logging.warning('Could not cache cost function: ' + str(e))
 
@@ -74,24 +79,29 @@ def dga(cost, lower_bound, upper_bound, bits, *args, **kwargs):
     converged = False
 
     if display_flag > 0:
-        print('Generation\t\tMinimum\t\t\tMean\t\t\tMax\t\t\t\tBSA')  # TODO: Display the stats of generation 0
+        print('Generation\t\tMinimum\t\tMean\t\tMax\t\tBSA')  # TODO: Display the stats of generation 0
 
     if num_cpu > 1:
+        global proc
         proc = pathos.multiprocessing.ProcessPool(nodes=num_cpu)
+        
 
     nfev = 0
     while loop_counter < max_generations and not converged:
-        tournament(cost, population)
+        pop_copy,fitness_values = tournament(cost, population)
         crossover(population, probability_mutation)
 
         nfev += population_size
-        if num_cpu > 1:
-            fitness_values = proc.map(lambda i: get_fitness(cost, i), population)
-        else:
-            fitness_values = [get_fitness(cost, individual) for individual in population]
+        #if num_cpu > 1:
+        #   fitness_values = proc.map(lambda i: get_fitness(cost, i), population)
+        #else:
+        #    fitness_values = [get_fitness(cost, individual) for individual in population]
 
         nfev += 1
-        xopt_current, valueopt_current = get_best_individual(cost, population)
+
+
+        xopt_current,valueopt_current = pop_copy[np.argmin(fitness_values)],np.min(fitness_values)
+        #xopt_current, valueopt_current = get_best_individual(cost, population)
         if valueopt_current < valueopt:
             xopt = xopt_current
             valueopt = valueopt_current
@@ -159,8 +169,12 @@ def crossover(population, probability_mutation):
 def tournament(cost, population):
     np.random.shuffle(population) # Begin by shuffling the current population to ensure we have a randomized tournament
     fitness_value = list()
-    for individual in population:
-        fitness_value.append(get_fitness(cost, individual))
+    #for individual in population:
+    #    fitness_value.append(get_fitness(cost, individual))
+    global proc
+    fitness_value = proc.map(lambda i: get_fitness(cost, i), population)
+
+    pop_copy = population.copy()
 
     remove_set = list()
     for ii in range(0, len(population), 2):
@@ -171,6 +185,8 @@ def tournament(cost, population):
 
     for index in sorted(remove_set, reverse=True):
         del population[index]
+
+    return pop_copy, fitness_value
 
 
 def get_bit_string_affinity(population, total_bits):
@@ -224,3 +240,5 @@ def generate_offspring(parent1, parent2):
 def get_fitness(cost, individual):
     decoded_state = [ii.decode() for ii in individual]
     return cost(*decoded_state)
+
+
